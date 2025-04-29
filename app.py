@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import json
-from io import BytesIO, ZipFile
+from io import BytesIO
+from zipfile import ZipFile  # ✅ Corrected this line
 
 st.set_page_config(page_title="Multi-Language JSON Generator", layout="centered")
 st.title("📄 Excel to Multi-Language JSON Generator")
@@ -30,6 +31,8 @@ if uploaded_file:
                         }
                         json_bytes = json.dumps(lang_dict, ensure_ascii=False, indent=4).encode('utf-8')
                         zip_file.writestr(f"{lang[:2].lower()}.json", json_bytes)
+
+                zip_buffer.seek(0)  # 🧠 Ensure buffer is ready for download
 
                 st.success("✅ JSON files created successfully!")
 
