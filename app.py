@@ -2,58 +2,36 @@ import streamlit as st
 import pandas as pd
 import json
 from io import BytesIO
-from zipfile import ZipFile
 
-# Optional mapping from column name to desired file name
-LANGUAGE_CODE_MAP = {
-    "english": "en",
-    "german": "de",
-    "french": "fr",
-    "portuguese": "pt",
-    "czech": "cs",
-    "simplified chinese": "zh-Hans",
-    "traditional chinese": "zh-Hant",
-    "japanese": "ja"
-}
+st.set_page_config(page_title="JSON to Excel Converter", layout="wide")
+st.title("🔄 JSON to Excel Converter for Translator Review")
 
-st.set_page_config(page_title="Multi-Language JSON Generator", layout="centered")
-st.title("📄 Excel to Multi-Language JSON Generator")
-
-uploaded_file = st.file_uploader("Upload Excel file with columns: id, english, german, ...", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload a JSON file", type=["json"])
 
 if uploaded_file:
     try:
-        df = pd.read_excel(uploaded_file)
+        json_data = json.load(uploaded_file)
 
-        if 'id' not in df.columns:
-            st.error("Missing required column: 'id'")
+        if isinstance(json_data, dict):
+            df = pd.DataFrame(list(json_data.items()), columns=["Key", "Original String"])
+            df["Translator Feedback"] = ""  # empty column for translators to fill
+
+            st.subheader("📋 Preview of Converted Data")
+            st.dataframe(df.head(10))
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name="Strings")
+            output.seek(0)
+
+            st.download_button(
+                label="📥 Download Excel for Translation Review",
+                data=output,
+                file_name="translated_strings_review.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         else:
-            lang_columns = [col for col in df.columns if col != 'id']
-            if not lang_columns:
-                st.error("No language columns found.")
-            else:
-                zip_buffer = BytesIO()
-                with ZipFile(zip_buffer, 'w') as zip_file:
-                    for lang_col in lang_columns:
-                        lang_code = LANGUAGE_CODE_MAP.get(lang_col.strip().lower(), lang_col[:2].lower())
-                        lang_dict = {
-                            row['id']: row[lang_col]
-                            for _, row in df.iterrows()
-                            if pd.notnull(row['id']) and pd.notnull(row[lang_col])
-                        }
-                        json_bytes = json.dumps(lang_dict, ensure_ascii=False, indent=4).encode('utf-8')
-                        zip_file.writestr(f"{lang_code}.json", json_bytes)
-
-                zip_buffer.seek(0)
-
-                st.success("✅ JSON files created for all languages!")
-
-                st.download_button(
-                    label="📥 Download ZIP with JSON files",
-                    data=zip_buffer.getvalue(),
-                    file_name="localized_jsons.zip",
-                    mime="application/zip"
-                )
+            st.error("Uploaded JSON is not a flat key-value dictionary.")
 
     except Exception as e:
-        st.error(f"⚠️ Error: {e}")
+        st.error(f"Error parsing JSON file: {e}")
